@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="id" dir="ltr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<title>Imam Prompter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cinzel:wght@400;600;700&display=swap" rel="stylesheet"/>
+<style>
+/* ── RESET & VARIABLES ─────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #080d14; --sur: #0f1822; --sur2: #172031;
+  --bdr: #1e3050; --bdr2: #2a4570;
+  --gold: #c8a84b; --goldl: #e8cb7a; --goldd: rgba(200,168,75,.15);
+  --grn: #3ddc84; --grnd: rgba(61,220,132,.15);
+  --txt: #ede5d0; --dim: #7a8fa8; --red: #e05c5c;
+  --ars: 3rem;
+}
+.light {
+  --bg: #f7f1e6; --sur: #fffcf5; --sur2: #f0e8d8;
+  --bdr: #d4c49a; --bdr2: #b8a070;
+  --txt: #18120a; --dim: #6b5c3e;
+}
+html, body { height: 100%; overflow: hidden; }
+body {
+  background: var(--bg); color: var(--txt);
+  font-family: 'Cinzel', serif;
+  transition: background .3s, color .3s;
+  -webkit-user-select: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── LAYOUT ─────────────────────────────────────────────────────────────── */
+.app { height: 100dvh; display: flex; flex-direction: column; }
+.layout { flex: 1; display: flex; overflow: hidden; }
+
+/* ── HEADER ─────────────────────────────────────────────────────────────── */
+.hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--sur); border-bottom: 1px solid var(--bdr);
+  flex-shrink: 0; gap: 10px;
+}
+.hdr-logo { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.hdr-icon { font-size: 1.5rem; }
+.hdr-title { font-size: .9rem; font-weight: 700; color: var(--gold); line-height: 1.2; }
+.hdr-sub { font-size: .55rem; color: var(--dim); letter-spacing: 2px; text-transform: uppercase; font-family: sans-serif; }
+.hdr-right { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+.hdr-qsel {
+  background: var(--sur2); border: 1px solid var(--bdr2);
+  color: var(--txt); border-radius: 8px; padding: 6px 8px;
+  font-size: .75rem; font-family: sans-serif; cursor: pointer; outline: none;
+  max-width: 160px;
+}
+.ibtn {
+  background: var(--sur2); border: 1px solid var(--bdr);
+  color: var(--txt); border-radius: 8px; padding: 7px 10px;
+  cursor: pointer; font-size: .95rem; transition: all .2s; flex-shrink: 0;
+}
+.ibtn:active { opacity: .7; }
+
+/* ── IMAM MODE BANNER ───────────────────────────────────────────────────── */
+.imam-banner {
+  background: var(--sur); border-bottom: 1px solid var(--bdr);
+  padding: 10px 16px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.imam-banner-left { flex: 1; min-width: 0; }
+.imam-status-title {
+  font-size: .78rem; font-weight: 700;
+  color: var(--dim); margin-bottom: 2px;
+}
+.imam-status-title.active { color: var(--grn); }
+.imam-status-desc { font-size: .65rem; color: var(--dim); font-family: sans-serif; line-height: 1.4; }
+.imam-jeda { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.imam-jeda label { font-size: .62rem; color: var(--dim); font-family: sans-serif; white-space: nowrap; }
+.imam-jeda input { width: 80px; accent-color: var(--gold); }
+.imam-jeda span { font-size: .7rem; color: var(--goldl); font-family: sans-serif; min-width: 24px; }
+.imam-btn {
+  padding: 9px 18px; border-radius: 10px; border: none;
+  font-size: .82rem; font-family: sans-serif; font-weight: 700;
+  cursor: pointer; transition: all .2s; white-space: nowrap; flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
+}
+.imam-btn.off { background: var(--grn); color: #080d14; }
+.imam-btn.off:active { opacity: .8; }
+.imam-btn.on  { background: var(--red); color: #fff; }
+.imam-btn.on:active { opacity: .8; }
+.imam-vol-bar {
+  height: 4px; border-radius: 2px;
+  background: var(--sur2); overflow: hidden; margin-top: 6px;
+}
+.imam-vol-fill {
+  height: 100%; background: var(--grn);
+  border-radius: 2px; transition: width .1s;
+}
+
+/* ── SIDEBAR ─────────────────────────────────────────────────────────────── */
+.sb {
+  width: 200px; flex-shrink: 0;
+  background: var(--sur); border-right: 1px solid var(--bdr);
+  overflow-y: auto; height: 100%;
+}
+.sb-head {
+  padding: 10px 14px 8px;
+  font-size: .58rem; letter-spacing: 3px; text-transform: uppercase;
+  color: var(--dim); border-bottom: 1px solid var(--bdr); font-family: sans-serif;
+  position: sticky; top: 0; background: var(--sur); z-index: 1;
+}
+.sb-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 12px; cursor: pointer;
+  border-bottom: 1px solid rgba(30,48,80,.5);
+  transition: background .15s; gap: 8px;
+}
+.sb-row:active { background: var(--sur2); }
+.sb-row.sel { background: var(--goldd); border-left: 3px solid var(--gold); }
+.sb-name { font-size: .72rem; font-weight: 600; color: var(--txt); line-height: 1.3; }
+.sb-meta { font-size: .6rem; color: var(--dim); font-family: sans-serif; }
+.sb-ar { font-family: 'Amiri', serif; font-size: 1.05rem; color: var(--gold); flex-shrink: 0; }
+
+/* ── CONTENT ─────────────────────────────────────────────────────────────── */
+.cnt { flex: 1; overflow-y: auto; height: 100%; -webkit-overflow-scrolling: touch; }
+.pmt { max-width: 860px; margin: 0 auto; padding: 20px 14px 60px; display: flex; flex-direction: column; gap: 14px; }
+
+/* ── SURAH HEADER ────────────────────────────────────────────────────────── */
+.sh {
+  text-align: center; padding: 20px 16px 16px;
+  background: var(--sur); border: 1px solid var(--bdr);
+  border-radius: 16px; overflow: hidden; position: relative;
+}
+.sh::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+}
+.sh-ar { font-family: 'Amiri', serif; font-size: 2.2rem; color: var(--goldl); margin-bottom: 4px; }
+.sh-name { font-size: 1rem; font-weight: 700; color: var(--txt); }
+.sh-meta { font-size: .68rem; color: var(--dim); font-family: sans-serif; margin-top: 4px; }
+.prg { height: 4px; background: var(--sur2); border-radius: 2px; overflow: hidden; margin-top: 12px; }
+.prg-f { height: 100%; background: linear-gradient(90deg, var(--gold), var(--grn)); transition: width .4s ease; border-radius: 2px; }
+
+/* ── AUDIO PANEL ─────────────────────────────────────────────────────────── */
+.ap {
+  background: var(--sur); border: 1px solid var(--bdr); border-radius: 14px;
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
+}
+.ap-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ap-lbl { font-size: .64rem; color: var(--dim); font-family: sans-serif; letter-spacing: 1px; text-transform: uppercase; flex-shrink: 0; }
+.awav { display: flex; align-items: center; gap: 3px; height: 18px; }
+.awav span { width: 3px; background: var(--grn); border-radius: 2px; animation: wav 1s ease-in-out infinite; }
+.awav span:nth-child(2){animation-delay:.15s} .awav span:nth-child(3){animation-delay:.3s} .awav span:nth-child(4){animation-delay:.45s}
+@keyframes wav { 0%,100%{height:4px;opacity:.5} 50%{height:16px;opacity:1} }
+.ast { font-size: .7rem; color: var(--grn); font-family: sans-serif; }
+.aerr { font-size: .7rem; color: var(--red); font-family: sans-serif; }
+.abtns { display: flex; gap: 8px; flex-wrap: wrap; }
+.abtn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 8px 14px; border-radius: 9px;
+  border: 1px solid var(--bdr2); background: var(--sur2);
+  color: var(--txt); font-size: .76rem; font-family: sans-serif;
+  cursor: pointer; transition: all .2s;
+}
+.abtn:active { opacity: .7; }
+.abtn.play { background: var(--gold); color: #080d14; border-color: var(--gold); font-weight: 700; }
+.abtn.stp  { border-color: var(--red); color: var(--red); }
+.abtn.auto.on { border-color: var(--grn); color: var(--grn); background: var(--grnd); }
+
+/* ── NAV CONTROLS ────────────────────────────────────────────────────────── */
+.nav {
+  background: var(--sur); border: 1px solid var(--bdr); border-radius: 14px;
+  padding: 12px 14px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+}
+.nbtn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 10px 16px; border-radius: 10px;
+  border: 1px solid var(--bdr2); background: var(--sur2);
+  color: var(--txt); font-size: .8rem; font-family: sans-serif;
+  cursor: pointer; transition: all .2s;
+}
+.nbtn:active { opacity: .7; }
+.nbtn.pri { background: var(--gold); color: #080d14; border-color: var(--gold); font-weight: 700; font-size: .88rem; padding: 11px 22px; }
+.nbtn.dng { border-color: var(--red); color: var(--red); }
+.nbtn.on  { border-color: var(--grn); color: var(--grn); background: var(--grnd); }
+.szc { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.szc label { font-size: .6rem; color: var(--dim); font-family: sans-serif; letter-spacing: 1px; white-space: nowrap; }
+.szc input { width: 75px; accent-color: var(--gold); cursor: pointer; }
+
+/* ── AYAT CARDS ──────────────────────────────────────────────────────────── */
+.al { display: flex; flex-direction: column; gap: 10px; }
+.ac {
+  background: var(--sur); border: 1px solid var(--bdr);
+  border-radius: 14px; padding: 18px 20px; cursor: pointer;
+  transition: all .25s; position: relative; overflow: hidden;
+}
+.ac::after {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+  background: var(--gold); opacity: 0; transition: opacity .25s;
+  border-radius: 4px 0 0 4px;
+}
+.ac.done { opacity: .35; }
+.ac.cur  {
+  border-color: var(--gold); background: var(--goldd);
+  box-shadow: 0 0 24px rgba(200,168,75,.12);
+}
+.ac.cur::after { opacity: 1; }
+.ac.ply  { border-color: var(--grn); background: var(--grnd); }
+.ac.ply::after { background: var(--grn); opacity: 1; }
+.ac-row  { display: flex; align-items: flex-start; gap: 12px; }
+.ac-num  {
+  min-width: 32px; height: 32px;
+  background: var(--sur2); border: 1px solid var(--bdr);
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: .7rem; color: var(--dim); font-family: sans-serif; flex-shrink: 0;
+}
+.ac.cur .ac-num { background: var(--gold); color: #080d14; border-color: var(--gold); font-weight: 800; }
+.ac.ply .ac-num { background: var(--grn); color: #080d14; border-color: var(--grn); }
+.ac-ar  {
+  font-family: 'Amiri', serif;
+  font-size: var(--ars); line-height: 2.0;
+  color: var(--txt); text-align: right; flex: 1;
+  direction: rtl; word-spacing: .1em;
+}
+.ac.done .ac-ar { color: var(--dim); }
+.ac-tr  {
+  font-family: sans-serif; font-size: .76rem; color: var(--dim);
+  font-style: italic; border-top: 1px solid var(--bdr);
+  padding-top: 8px; margin-top: 8px; display: none;
+}
+.show-tr .ac-tr { display: block; }
+.ac-aubtn {
+  margin-top: 8px; display: inline-flex; align-items: center; gap: 5px;
+  background: transparent; border: 1px solid var(--bdr);
+  color: var(--dim); border-radius: 8px; padding: 4px 10px;
+  font-size: .68rem; font-family: sans-serif; cursor: pointer; transition: all .2s;
+}
+.ac-aubtn:active { opacity: .7; }
+.ac-aubtn.ply { border-color: var(--grn); color: var(--grn); background: var(--grnd); }
+
+/* ── EMPTY STATE ─────────────────────────────────────────────────────────── */
+.emp { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; gap: 12px; text-align: center; }
+.emp-i { font-size: 3.5rem; opacity: .35; }
+.emp-t { font-size: 1rem; color: var(--dim); }
+.emp-s { font-size: .75rem; color: var(--dim); font-family: sans-serif; max-width: 260px; line-height: 1.7; }
+
+/* ── KBD HINT ────────────────────────────────────────────────────────────── */
+.kh { text-align: center; font-size: .62rem; color: var(--dim); font-family: sans-serif; padding: 6px; }
+.kbd { background: var(--sur2); border: 1px solid var(--bdr); border-radius: 4px; padding: 1px 5px; }
+
+/* ── SCROLLBAR ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bdr); border-radius: 3px; }
+
+/* ── RESPONSIVE ──────────────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .sb { width: 170px; }
+  :root { --ars: 2.2rem; }
+  .pmt { padding: 12px 10px 50px; }
+}
+@media (max-width: 420px) {
+  .sb { display: none; }
+  :root { --ars: 2rem; }
+}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- HEADER -->
+  <header class="hdr">
+    <div class="hdr-logo">
+      <span class="hdr-icon">🕌</span>
+      <div>
+        <div class="hdr-title">Imam Prompter</div>
+        <div class="hdr-sub">Pengingat Bacaan</div>
+      </div>
+    </div>
+    <div class="hdr-right">
+      <select class="hdr-qsel" id="qariSelect">
+        <option value="Alafasy_128kbps">🇸🇦 Mishary Alafasy</option>
+        <option value="Abdul_Basit_Murattal_192kbps">🇪🇬 Abdul Basit</option>
+        <option value="Husary_128kbps">🇪🇬 Mahmoud Husary</option>
+        <option value="Minshawi_Murattal_128kbps">🇪🇬 Minshawi</option>
+      </select>
+      <button class="ibtn" id="themeBtn" title="Ganti tema">☀️</button>
+    </div>
+  </header>
+
+  <!-- IMAM MODE BANNER -->
+  <div class="imam-banner" id="imamBanner">
+    <div class="imam-banner-left">
+      <div class="imam-status-title" id="imamStatusTitle">🎙 Imam Mode Nonaktif</div>
+      <div class="imam-status-desc" id="imamStatusDesc">Aktifkan agar app mendeteksi diam dan otomatis membantu bacaan imam.</div>
+      <div class="imam-jeda">
+        <label>Jeda diam:</label>
+        <input type="range" min="1" max="8" step="0.5" value="3" id="jedaSlider"/>
+        <span id="jedaVal">3d</span>
+      </div>
+      <div class="imam-vol-bar" id="imamVolBar" style="display:none">
+        <div class="imam-vol-fill" id="imamVolFill" style="width:0%"></div>
+      </div>
+    </div>
+    <button class="imam-btn off" id="imamBtn">🎙 Aktifkan</button>
+  </div>
+
+  <!-- LAYOUT -->
+  <div class="layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sb" id="sidebar">
+      <div class="sb-head">Pilih Surah</div>
+      <div id="surahList"></div>
+    </aside>
+
+    <!-- CONTENT -->
+    <main class="cnt" id="content">
+      <div class="emp">
+        <div class="emp-i">📖</div>
+        <div class="emp-t">Pilih Surah</div>
+        <div class="emp-s">Pilih salah satu surah di panel kiri. Audio tilawah dan Imam Mode tersedia.</div>
+      </div>
+    </main>
+
+  </div>
+</div>
+
+<script>
+// ── QURAN DATA ────────────────────────────────────────────────────────────────
+const SURAH_DATA = {
+  1:  { name:"Al-Fatihah",  arabic:"الفاتحة",  ayat:[
+    {n:1,ar:"بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",tr:"Bismillāhir-raḥmānir-raḥīm"},
+    {n:2,ar:"الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ",tr:"Al-ḥamdu lillāhi rabbil-'ālamīn"},
+    {n:3,ar:"الرَّحْمَٰنِ الرَّحِيمِ",tr:"Ar-raḥmānir-raḥīm"},
+    {n:4,ar:"مَالِكِ يَوْمِ الدِّينِ",tr:"Māliki yawmid-dīn"},
+    {n:5,ar:"إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ",tr:"Iyyāka na'budu wa iyyāka nasta'īn"},
+    {n:6,ar:"اهْدِنَا الصِّرَاطَ الْمُسْتَقِيمَ",tr:"Ihdinaṣ-ṣirāṭal-mustaqīm"},
+    {n:7,ar:"صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ",tr:"Ṣirāṭal-ladhīna an'amta 'alayhim ghayril-maghḍūbi 'alayhim wa laḍ-ḍāllīn"},
+  ]},
+  87: { name:"Al-A'la",     arabic:"الأعلى",   ayat:[
+    {n:1,ar:"سَبِّحِ اسْمَ رَبِّكَ الْأَعْلَى",tr:"Sabbiḥisma rabbikal-a'lā"},
+    {n:2,ar:"الَّذِي خَلَقَ فَسَوَّىٰ",tr:"Al-ladhī khalaqa fasawwā"},
+    {n:3,ar:"وَالَّذِي قَدَّرَ فَهَدَىٰ",tr:"Wal-ladhī qaddara fahadā"},
+    {n:4,ar:"وَالَّذِي أَخْرَجَ الْمَرْعَىٰ",tr:"Wal-ladhī akhrajal-mar'ā"},
+    {n:5,ar:"فَجَعَلَهُ غُثَاءً أَحْوَىٰ",tr:"Faja'alahū ghuthā'an aḥwā"},
+    {n:6,ar:"سَنُقْرِئُكَ فَلَا تَنسَىٰ",tr:"Sanuqri'uka falā tansā"},
+    {n:7,ar:"إِلَّا مَا شَاءَ اللَّهُ ۚ إِنَّهُ يَعْلَمُ الْجَهْرَ وَمَا يَخْفَىٰ",tr:"Illā mā shā'allāh, innahū ya'lamul-jahra wa mā yakhfā"},
+    {n:8,ar:"وَنُيَسِّرُكَ لِلْيُسْرَىٰ",tr:"Wa nuyassiruka lilyusrā"},
+    {n:9,ar:"فَذَكِّرْ إِن نَّفَعَتِ الذِّكْرَىٰ",tr:"Fadhakkir in nafa'atidh-dhikrā"},
+    {n:10,ar:"سَيَذَّكَّرُ مَن يَخْشَىٰ",tr:"Sayadhdhakkaru man yakhshā"},
+    {n:11,ar:"وَيَتَجَنَّبُهَا الْأَشْقَى",tr:"Wa yatajannabuhāl-ashqā"},
+    {n:12,ar:"الَّذِي يَصْلَى النَّارَ الْكُبْرَىٰ",tr:"Al-ladhī yaṣlan-nāral-kubrā"},
+    {n:13,ar:"ثُمَّ لَا يَمُوتُ فِيهَا وَلَا يَحْيَىٰ",tr:"Thumma lā yamūtu fīhā wa lā yaḥyā"},
+    {n:14,ar:"قَدْ أَفْلَحَ مَن تَزَكَّىٰ",tr:"Qad aflaḥa man tazakkā"},
+    {n:15,ar:"وَذَكَرَ اسْمَ رَبِّهِ فَصَلَّىٰ",tr:"Wa dhakara-sma rabbihī faṣallā"},
+    {n:16,ar:"بَلْ تُؤْثِرُونَ الْحَيَاةَ الدُّنْيَا",tr:"Bal tu'thirunal-ḥayātad-dunyā"},
+    {n:17,ar:"وَالْآخِرَةُ خَيْرٌ وَأَبْقَىٰ",tr:"Wal-ākhiratu khayruuw wa abqā"},
+    {n:18,ar:"إِنَّ هَٰذَا لَفِي الصُّحُفِ الْأُولَىٰ",tr:"Inna hādhā lafīṣ-ṣuḥufil-ūlā"},
+    {n:19,ar:"صُحُفِ إِبْرَاهِيمَ وَمُوسَىٰ",tr:"Ṣuḥufi ibrāhīma wa mūsā"},
+  ]},
+  91: { name:"Ash-Shams",   arabic:"الشمس",    ayat:[
+    {n:1,ar:"وَالشَّمْسِ وَضُحَاهَا",tr:"Wash-shamsi wa ḍuḥāhā"},
+    {n:2,ar:"وَالْقَمَرِ إِذَا تَلَاهَا",tr:"Wal-qamari idhā talāhā"},
+    {n:3,ar:"وَالنَّهَارِ إِذَا جَلَّاهَا",tr:"Wan-nahāri idhā jallāhā"},
+    {n:4,ar:"وَاللَّيْلِ إِذَا يَغْشَاهَا",tr:"Wal-layli idhā yaghshāhā"},
+    {n:5,ar:"وَالسَّمَاءِ وَمَا بَنَاهَا",tr:"Was-samā'i wa mā banāhā"},
+    {n:6,ar:"وَالْأَرْضِ وَمَا طَحَاهَا",tr:"Wal-arḍi wa mā ṭaḥāhā"},
+    {n:7,ar:"وَنَفْسٍ وَمَا سَوَّاهَا",tr:"Wa nafsiw wa mā sawwāhā"},
+    {n:8,ar:"فَأَلْهَمَهَا فُجُورَهَا وَتَقْوَاهَا",tr:"Fa-alhamahā fujūrahā wa taqwāhā"},
+    {n:9,ar:"قَدْ أَفْلَحَ مَن زَكَّاهَا",tr:"Qad aflaḥa man zakkāhā"},
+    {n:10,ar:"وَقَدْ خَابَ مَن دَسَّاهَا",tr:"Wa qad khāba man dassāhā"},
+    {n:11,ar:"كَذَّبَتْ ثَمُودُ بِطَغْوَاهَا",tr:"Kadhdhabat thamūdu biṭaghwāhā"},
+    {n:12,ar:"إِذِ انبَعَثَ أَشْقَاهَا",tr:"Idhin-ba'atha ashqāhā"},
+    {n:13,ar:"فَقَالَ لَهُمْ رَسُولُ اللَّهِ نَاقَةَ اللَّهِ وَسُقْيَاهَا",tr:"Faqāla lahum rasūlullāhi nāqatallāhi wa suqyāhā"},
+    {n:14,ar:"فَكَذَّبُوهُ فَعَقَرُوهَا فَدَمْدَمَ عَلَيْهِمْ رَبُّهُم بِذَنبِهِمْ فَسَوَّاهَا",tr:"Fakadhdhabūhu fa'aqarūhā fadamdama 'alayhim rabbuhum bidhambihim fasawwāhā"},
+    {n:15,ar:"وَلَا يَخَافُ عُقْبَاهَا",tr:"Wa lā yakhāfu 'uqbāhā"},
+  ]},
+  93: { name:"Ad-Duha",     arabic:"الضحى",    ayat:[
+    {n:1,ar:"وَالضُّحَىٰ",tr:"Waḍ-ḍuḥā"},
+    {n:2,ar:"وَاللَّيْلِ إِذَا سَجَىٰ",tr:"Wal-layli idhā sajā"},
+    {n:3,ar:"مَا وَدَّعَكَ رَبُّكَ وَمَا قَلَىٰ",tr:"Mā wadda'aka rabbuka wa mā qalā"},
+    {n:4,ar:"وَلَلْآخِرَةُ خَيْرٌ لَّكَ مِنَ الْأُولَىٰ",tr:"Wa lal-ākhiratu khayrul laka minal-ūlā"},
+    {n:5,ar:"وَلَسَوْفَ يُعْطِيكَ رَبُّكَ فَتَرْضَىٰ",tr:"Wa lasawfa yu'ṭīka rabbuka fataraḍā"},
+    {n:6,ar:"أَلَمْ يَجِدْكَ يَتِيمًا فَآوَىٰ",tr:"Alam yajidka yatīman fa-āwā"},
+    {n:7,ar:"وَوَجَدَكَ ضَالًّا فَهَدَىٰ",tr:"Wa wajadaka ḍāllan fahadā"},
+    {n:8,ar:"وَوَجَدَكَ عَائِلًا فَأَغْنَىٰ",tr:"Wa wajadaka 'ā'ilan fa-aghnā"},
+    {n:9,ar:"فَأَمَّا الْيَتِيمَ فَلَا تَقْهَرْ",tr:"Fa-ammal-yatīma falā taqhar"},
+    {n:10,ar:"وَأَمَّا السَّائِلَ فَلَا تَنْهَرْ",tr:"Wa ammas-sā'ila falā tanhar"},
+    {n:11,ar:"وَأَمَّا بِنِعْمَةِ رَبِّكَ فَحَدِّثْ",tr:"Wa ammā bini'mati rabbika faḥaddith"},
+  ]},
+  94: { name:"Ash-Sharh",   arabic:"الشرح",    ayat:[
+    {n:1,ar:"أَلَمْ نَشْرَحْ لَكَ صَدْرَكَ",tr:"Alam nashraḥ laka ṣadrak"},
+    {n:2,ar:"وَوَضَعْنَا عَنكَ وِزْرَكَ",tr:"Wa waḍa'nā 'anka wizrak"},
+    {n:3,ar:"الَّذِي أَنقَضَ ظَهْرَكَ",tr:"Al-ladhī anqaḍa ẓahrak"},
+    {n:4,ar:"وَرَفَعْنَا لَكَ ذِكْرَكَ",tr:"Wa rafa'nā laka dhikrak"},
+    {n:5,ar:"فَإِنَّ مَعَ الْعُسْرِ يُسْرًا",tr:"Fa-inna ma'al-'usri yusrā"},
+    {n:6,ar:"إِنَّ مَعَ الْعُسْرِ يُسْرًا",tr:"Inna ma'al-'usri yusrā"},
+    {n:7,ar:"فَإِذَا فَرَغْتَ فَانصَبْ",tr:"Fa-idhā faraghta fanṣab"},
+    {n:8,ar:"وَإِلَىٰ رَبِّكَ فَارْغَب",tr:"Wa ilā rabbika farghab"},
+  ]},
+  97: { name:"Al-Qadr",     arabic:"القدر",    ayat:[
+    {n:1,ar:"إِنَّا أَنزَلْنَاهُ فِي لَيْلَةِ الْقَدْرِ",tr:"Innā anzalnāhu fī laylatil-qadr"},
+    {n:2,ar:"وَمَا أَدْرَاكَ مَا لَيْلَةُ الْقَدْرِ",tr:"Wa mā adrāka mā laylatul-qadr"},
+    {n:3,ar:"لَيْلَةُ الْقَدْرِ خَيْرٌ مِّنْ أَلْفِ شَهْرٍ",tr:"Laylatul-qadri khayrum min alfi shahr"},
+    {n:4,ar:"تَنَزَّلُ الْمَلَائِكَةُ وَالرُّوحُ فِيهَا بِإِذْنِ رَبِّهِم مِّن كُلِّ أَمْرٍ",tr:"Tanazzalul-malā'ikatu war-rūḥu fīhā bi-idhni rabbihim min kulli amr"},
+    {n:5,ar:"سَلَامٌ هِيَ حَتَّىٰ مَطْلَعِ الْفَجْرِ",tr:"Salāmun hiya ḥattā maṭla'il-fajr"},
+  ]},
+  99: { name:"Az-Zalzalah", arabic:"الزلزلة",  ayat:[
+    {n:1,ar:"إِذَا زُلْزِلَتِ الْأَرْضُ زِلْزَالَهَا",tr:"Idhā zulzilatil-arḍu zilzālahā"},
+    {n:2,ar:"وَأَخْرَجَتِ الْأَرْضُ أَثْقَالَهَا",tr:"Wa akhrajatil-arḍu athqālahā"},
+    {n:3,ar:"وَقَالَ الْإِنسَانُ مَا لَهَا",tr:"Wa qālal-insānu mā lahā"},
+    {n:4,ar:"يَوْمَئِذٍ تُحَدِّثُ أَخْبَارَهَا",tr:"Yawma'idhin tuḥaddithu akhbārahā"},
+    {n:5,ar:"بِأَنَّ رَبَّكَ أَوْحَىٰ لَهَا",tr:"Bi-anna rabbaka awḥā lahā"},
+    {n:6,ar:"يَوْمَئِذٍ يَصْدُرُ النَّاسُ أَشْتَاتًا لِّيُرَوْا أَعْمَالَهُمْ",tr:"Yawma'idhin yaṣdurun-nāsu ashtātal-liyuraw a'mālahum"},
+    {n:7,ar:"فَمَن يَعْمَلْ مِثْقَالَ ذَرَّةٍ خَيْرًا يَرَهُ",tr:"Faman ya'mal mithqāla dharratin khayray yarah"},
+    {n:8,ar:"وَمَن يَعْمَلْ مِثْقَالَ ذَرَّةٍ شَرًّا يَرَهُ",tr:"Wa man ya'mal mithqāla dharratin sharray yarah"},
+  ]},
+  103: { name:"Al-Asr",     arabic:"العصر",    ayat:[
+    {n:1,ar:"وَالْعَصْرِ",tr:"Wal-'aṣr"},
+    {n:2,ar:"إِنَّ الْإِنسَانَ لَفِي خُسْرٍ",tr:"Innal-insāna lafī khusr"},
+    {n:3,ar:"إِلَّا الَّذِينَ آمَنُوا وَعَمِلُوا الصَّالِحَاتِ وَتَوَاصَوْا بِالْحَقِّ وَتَوَاصَوْا بِالصَّبْرِ",tr:"Illal-ladhīna āmanū wa 'amiluṣ-ṣāliḥāti wa tawāṣaw bil-ḥaqqi wa tawāṣaw biṣ-ṣabr"},
+  ]},
+  108: { name:"Al-Kawthar", arabic:"الكوثر",   ayat:[
+    {n:1,ar:"إِنَّا أَعْطَيْنَاكَ الْكَوْثَرَ",tr:"Innā a'ṭaynākal-kawṯar"},
+    {n:2,ar:"فَصَلِّ لِرَبِّكَ وَانْحَرْ",tr:"Faṣalli lirabbika wanḥar"},
+    {n:3,ar:"إِنَّ شَانِئَكَ هُوَ الْأَبْتَرُ",tr:"Inna shāni'aka huwal-abtar"},
+  ]},
+  109: { name:"Al-Kafirun", arabic:"الكافرون", ayat:[
+    {n:1,ar:"قُلْ يَا أَيُّهَا الْكَافِرُونَ",tr:"Qul yā ayyuhal-kāfirūn"},
+    {n:2,ar:"لَا أَعْبُدُ مَا تَعْبُدُونَ",tr:"Lā a'budu mā ta'budūn"},
+    {n:3,ar:"وَلَا أَنتُمْ عَابِدُونَ مَا أَعْبُدُ",tr:"Wa lā antum 'ābidūna mā a'bud"},
+    {n:4,ar:"وَلَا أَنَا عَابِدٌ مَّا عَبَدتُّمْ",tr:"Wa lā ana 'ābidum mā 'abadttum"},
+    {n:5,ar:"وَلَا أَنتُمْ عَابِدُونَ مَا أَعْبُدُ",tr:"Wa lā antum 'ābidūna mā a'bud"},
+    {n:6,ar:"لَكُمْ دِينُكُمْ وَلِيَ دِينِ",tr:"Lakum dīnukum wa liya dīn"},
+  ]},
+  110: { name:"An-Nasr",    arabic:"النصر",    ayat:[
+    {n:1,ar:"إِذَا جَاءَ نَصْرُ اللَّهِ وَالْفَتْحُ",tr:"Idhā jā'a naṣrullāhi wal-fatḥ"},
+    {n:2,ar:"وَرَأَيْتَ النَّاسَ يَدْخُلُونَ فِي دِينِ اللَّهِ أَفْوَاجًا",tr:"Wa ra'aytan-nāsa yadkhulūna fī dīnillāhi afwājā"},
+    {n:3,ar:"فَسَبِّحْ بِحَمْدِ رَبِّكَ وَاسْتَغْفِرْهُ ۚ إِنَّهُ كَانَ تَوَّابًا",tr:"Fasabbiḥ biḥamdi rabbika wastaghfirh, innahū kāna tawwābā"},
+  ]},
+  112: { name:"Al-Ikhlas",  arabic:"الإخلاص",  ayat:[
+    {n:1,ar:"قُلْ هُوَ اللَّهُ أَحَدٌ",tr:"Qul huwallāhu aḥad"},
+    {n:2,ar:"اللَّهُ الصَّمَدُ",tr:"Allāhuṣ-ṣamad"},
+    {n:3,ar:"لَمْ يَلِدْ وَلَمْ يُولَدْ",tr:"Lam yalid wa lam yūlad"},
+    {n:4,ar:"وَلَمْ يَكُن لَّهُ كُفُوًا أَحَدٌ",tr:"Wa lam yakun lahū kufuwan aḥad"},
+  ]},
+  113: { name:"Al-Falaq",   arabic:"الفلق",    ayat:[
+    {n:1,ar:"قُلْ أَعُوذُ بِرَبِّ الْفَلَقِ",tr:"Qul a'ūdhu birabbil-falaq"},
+    {n:2,ar:"مِن شَرِّ مَا خَلَقَ",tr:"Min sharri mā khalaq"},
+    {n:3,ar:"وَمِن شَرِّ غَاسِقٍ إِذَا وَقَبَ",tr:"Wa min sharri ghāsiqin idhā waqab"},
+    {n:4,ar:"وَمِن شَرِّ النَّفَّاثَاتِ فِي الْعُقَدِ",tr:"Wa min sharrin-naffāthāti fil-'uqad"},
+    {n:5,ar:"وَمِن شَرِّ حَاسِدٍ إِذَا حَسَدَ",tr:"Wa min sharri ḥāsidin idhā ḥasad"},
+  ]},
+  114: { name:"An-Nas",     arabic:"الناس",    ayat:[
+    {n:1,ar:"قُلْ أَعُوذُ بِرَبِّ النَّاسِ",tr:"Qul a'ūdhu birabbin-nās"},
+    {n:2,ar:"مَلِكِ النَّاسِ",tr:"Malikin-nās"},
+    {n:3,ar:"إِلَٰهِ النَّاسِ",tr:"Ilāhin-nās"},
+    {n:4,ar:"مِن شَرِّ الْوَسْوَاسِ الْخَنَّاسِ",tr:"Min sharril-waswāsil-khannās"},
+    {n:5,ar:"الَّذِي يُوَسْوِسُ فِي صُدُورِ النَّاسِ",tr:"Al-ladhī yuwaswisu fī ṣudūrin-nās"},
+    {n:6,ar:"مِنَ الْجِنَّةِ وَالنَّاسِ",tr:"Minal-jinnati wan-nās"},
+  ]},
+};
+
+const SURAH_LIST = [
+  {id:1,   name:"Al-Fatihah",  arabic:"الفاتحة",  ayat:7},
+  {id:87,  name:"Al-A'la",     arabic:"الأعلى",   ayat:19},
+  {id:91,  name:"Ash-Shams",   arabic:"الشمس",    ayat:15},
+  {id:93,  name:"Ad-Duha",     arabic:"الضحى",    ayat:11},
+  {id:94,  name:"Ash-Sharh",   arabic:"الشرح",    ayat:8},
+  {id:97,  name:"Al-Qadr",     arabic:"القدر",    ayat:5},
+  {id:99,  name:"Az-Zalzalah", arabic:"الزلزلة",  ayat:8},
+  {id:103, name:"Al-Asr",      arabic:"العصر",    ayat:3},
+  {id:108, name:"Al-Kawthar",  arabic:"الكوثر",   ayat:3},
+  {id:109, name:"Al-Kafirun",  arabic:"الكافرون", ayat:6},
+  {id:110, name:"An-Nasr",     arabic:"النصر",    ayat:3},
+  {id:112, name:"Al-Ikhlas",   arabic:"الإخلاص",  ayat:4},
+  {id:113, name:"Al-Falaq",    arabic:"الفلق",    ayat:5},
+  {id:114, name:"An-Nas",      arabic:"الناس",    ayat:6},
+];
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let state = {
+  night: true, trans: false, surah: null, cur: 0,
+  ars: 3.0, qari: "Alafasy_128kbps",
+  audioStatus: "idle", // idle | loading | playing | error
+  plyIdx: null, autoPly: false,
+  // imam mode
+  imamActive: false, jedaSec: 3,
+  // mic / audio analysis
+  audioCtx: null, analyser: null, micStream: null,
+  silenceTimer: null, lastSoundTime: 0, volRafId: null,
+};
+
+let currentAudio = null;
+
+// ── AUDIO ─────────────────────────────────────────────────────────────────────
+function audioUrl(surahNum, ayatNum) {
+  return `https://everyayah.com/data/${state.qari}/${String(surahNum).padStart(3,'0')}${String(ayatNum).padStart(3,'0')}.mp3`;
+}
+
+function stopAudio() {
+  if (currentAudio) { currentAudio.pause(); currentAudio.src = ""; currentAudio = null; }
+  state.audioStatus = "idle"; state.plyIdx = null;
+  renderAudioStatus();
+}
+
+function playAyat(surahId, idx, ayatList) {
+  stopAudio();
+  const url = audioUrl(surahId, ayatList[idx].n);
+  state.audioStatus = "loading"; state.plyIdx = idx;
+  renderAudioStatus(); renderAyatList();
+  const audio = new Audio(url);
+  currentAudio = audio;
+  audio.oncanplaythrough = () => { state.audioStatus = "playing"; renderAudioStatus(); renderAyatList(); };
+  audio.onended = () => {
+    state.audioStatus = "idle"; state.plyIdx = null;
+    renderAudioStatus(); renderAyatList();
+    if (state.autoPly && idx < ayatList.length - 1) {
+      const nxt = idx + 1; state.cur = nxt;
+      renderSurahHeader(); renderAyatList();
+      setTimeout(() => playAyat(surahId, nxt, ayatList), 120);
+    }
+  };
+  audio.onerror = () => { state.audioStatus = "error"; state.plyIdx = null; renderAudioStatus(); renderAyatList(); };
+  audio.play().catch(() => { state.audioStatus = "error"; renderAudioStatus(); });
+}
+
+// ── IMAM MODE (MIKROFON + SILENCE DETECTION) ──────────────────────────────────
+async function activateImamMode() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    const ctx     = new (window.AudioContext || window.webkitAudioContext)();
+    const source  = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 512;
+    source.connect(analyser);
+
+    state.audioCtx  = ctx;
+    state.analyser  = analyser;
+    state.micStream = stream;
+    state.imamActive = true;
+    state.lastSoundTime = Date.now();
+
+    renderImamBanner();
+    startVolumeMeter();
+    startSilenceDetector();
+  } catch (err) {
+    alert("Izin mikrofon ditolak atau tidak tersedia.\n\nPastikan:\n1. Buka file ini di Chrome/Safari\n2. Izinkan akses mikrofon saat diminta\n3. Koneksi bukan via iframe");
+  }
+}
+
+function deactivateImamMode() {
+  if (state.micStream) { state.micStream.getTracks().forEach(t => t.stop()); state.micStream = null; }
+  if (state.audioCtx)  { state.audioCtx.close(); state.audioCtx = null; }
+  if (state.silenceTimer) { clearTimeout(state.silenceTimer); state.silenceTimer = null; }
+  if (state.volRafId)  { cancelAnimationFrame(state.volRafId); state.volRafId = null; }
+  state.imamActive = false; state.analyser = null;
+  renderImamBanner();
+  document.getElementById("imamVolBar").style.display = "none";
+}
+
+function startVolumeMeter() {
+  // Live volume bar so imam can see mic is working
+  const buf = new Uint8Array(state.analyser.frequencyBinCount);
+  const fill = document.getElementById("imamVolFill");
+  const bar  = document.getElementById("imamVolBar");
+  bar.style.display = "block";
+
+  function tick() {
+    if (!state.analyser) return;
+    state.analyser.getByteFrequencyData(buf);
+    const avg = buf.reduce((a,b) => a+b, 0) / buf.length;
+    const pct = Math.min(100, avg * 2.5);
+    fill.style.width = pct + "%";
+    state.volRafId = requestAnimationFrame(tick);
+  }
+  tick();
+}
+
+function startSilenceDetector() {
+  // Poll RMS every 200ms; if silent > jedaSec → advance to next ayat
+  const buf = new Uint8Array(state.analyser.frequencyBinCount);
+  const THRESHOLD = 8; // RMS value below this = silence
+
+  function poll() {
+    if (!state.imamActive || !state.analyser) return;
+    state.analyser.getByteFrequencyData(buf);
+    const rms = Math.sqrt(buf.reduce((s,v) => s + v*v, 0) / buf.length);
+
+    if (rms > THRESHOLD) {
+      // Sound detected — reset silence timer
+      state.lastSoundTime = Date.now();
+    } else {
+      // Silence — check if exceeded jeda
+      const silentFor = (Date.now() - state.lastSoundTime) / 1000;
+      if (silentFor >= state.jedaSec && state.surah) {
+        const ayatList = SURAH_DATA[state.surah.id]?.ayat || [];
+        if (state.cur < ayatList.length - 1) {
+          state.cur++;
+          state.lastSoundTime = Date.now(); // reset so it doesn't keep firing
+          renderSurahHeader();
+          renderAyatList();
+          scrollToCurrent();
+        }
+      }
+    }
+    setTimeout(poll, 200);
+  }
+  poll();
+}
+
+// ── RENDER HELPERS ────────────────────────────────────────────────────────────
+function scrollToCurrent() {
+  const el = document.querySelector(".ac.cur");
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function renderImamBanner() {
+  const title = document.getElementById("imamStatusTitle");
+  const desc  = document.getElementById("imamStatusDesc");
+  const btn   = document.getElementById("imamBtn");
+
+  if (state.imamActive) {
+    title.textContent = "🎙 Imam Mode AKTIF — Mendengarkan…";
+    title.className = "imam-status-title active";
+    desc.textContent = `Ayat akan maju otomatis setelah ${state.jedaSec}d diam terdeteksi.`;
+    btn.textContent = "⏹ Nonaktifkan";
+    btn.className = "imam-btn on";
+  } else {
+    title.textContent = "🎙 Imam Mode Nonaktif";
+    title.className = "imam-status-title";
+    desc.textContent = "Aktifkan agar app mendeteksi diam dan otomatis membantu bacaan imam.";
+    btn.textContent = "🎙 Aktifkan";
+    btn.className = "imam-btn off";
+  }
+}
+
+function renderAudioStatus() {
+  const row = document.getElementById("audioStatusRow");
+  if (!row) return;
+  if (state.audioStatus === "playing") {
+    row.innerHTML = `<div class="awav"><span></span><span></span><span></span><span></span></div>
+      <span class="ast">Memutar ayat ${(state.plyIdx??0)+1}…</span>`;
+  } else if (state.audioStatus === "loading") {
+    row.innerHTML = `<span class="ast" style="opacity:.7">⏳ Memuat audio…</span>`;
+  } else if (state.audioStatus === "error") {
+    row.innerHTML = `<span class="aerr">⚠️ Gagal memuat. Periksa koneksi.</span>`;
+  } else {
+    row.innerHTML = "";
+  }
+
+  const stopBtn = document.getElementById("audioStopBtn");
+  if (stopBtn) stopBtn.style.display = state.audioStatus !== "idle" ? "" : "none";
+}
+
+function renderSurahHeader() {
+  const sh = document.getElementById("surahHeader");
+  if (!sh || !state.surah) return;
+  const ayatList = SURAH_DATA[state.surah.id]?.ayat || [];
+  const pct = ayatList.length > 0 ? ((state.cur+1)/ayatList.length)*100 : 0;
+  sh.querySelector(".sh-m").textContent =
+    `Q.S. ${state.surah.id} · ${ayatList.length} Ayat · Ayat ${state.cur+1} dari ${ayatList.length}`;
+  sh.querySelector(".prg-f").style.width = pct + "%";
+}
+
+function renderAyatList() {
+  const container = document.getElementById("ayatContainer");
+  if (!container || !state.surah) return;
+  const ayatList = SURAH_DATA[state.surah.id]?.ayat || [];
+  container.className = "al" + (state.trans ? " show-tr" : "");
+
+  container.innerHTML = ayatList.map((ayat, idx) => {
+    const isCur  = idx === state.cur;
+    const isDone = idx < state.cur;
+    const isPly  = idx === state.plyIdx && state.audioStatus === "playing";
+    return `
+      <div class="ac${isCur?" cur":""}${isDone?" done":""}${isPly?" ply":""}"
+           onclick="selectAyat(${idx})" id="ac-${idx}">
+        <div class="ac-row">
+          <div class="ac-num">${ayat.n}</div>
+          <div class="ac-ar">${ayat.ar}</div>
+        </div>
+        <div class="ac-tr">${ayat.tr}</div>
+        <button class="ac-aubtn${isPly?" ply":""}"
+          onclick="event.stopPropagation(); ${isPly?`stopAudio()`:`playAyat(${state.surah.id},${idx},SURAH_DATA[${state.surah.id}].ayat)`}">
+          ${isPly?"⏹ Stop":"▶ Dengarkan"}
+        </button>
+      </div>`;
+  }).join("");
+}
+
+function selectAyat(idx) {
+  stopAudio();
+  state.cur = idx;
+  renderSurahHeader();
+  renderAyatList();
+  scrollToCurrent();
+}
+
+function selectSurah(id) {
+  stopAudio();
+  state.surah = SURAH_LIST.find(s => s.id === id);
+  state.cur = 0;
+  if (state.imamActive) state.lastSoundTime = Date.now();
+  renderAll();
+}
+
+function renderAll() {
+  // Sidebar highlight
+  document.querySelectorAll(".sb-row").forEach(el => {
+    el.classList.toggle("sel", parseInt(el.dataset.id) === state.surah?.id);
+  });
+
+  const content = document.getElementById("content");
+  if (!state.surah) {
+    content.innerHTML = `<div class="emp"><div class="emp-i">📖</div>
+      <div class="emp-t">Pilih Surah</div>
+      <div class="emp-s">Pilih salah satu surah di panel kiri untuk memulai sesi.</div></div>`;
+    return;
+  }
+
+  const ayatList = SURAH_DATA[state.surah.id]?.ayat || [];
+  const pct = ayatList.length > 0 ? ((state.cur+1)/ayatList.length)*100 : 0;
+
+  content.innerHTML = `
+    <div class="pmt">
+      <!-- Surah header -->
+      <div class="sh" id="surahHeader">
+        <div class="sh-ar">${state.surah.arabic}</div>
+        <div class="sh-name">${state.surah.name}</div>
+        <div class="sh-m">Q.S. ${state.surah.id} · ${ayatList.length} Ayat · Ayat ${state.cur+1} dari ${ayatList.length}</div>
+        <div class="prg"><div class="prg-f" style="width:${pct}%"></div></div>
+      </div>
+
+      <!-- Audio panel -->
+      <div class="ap">
+        <div class="ap-row">
+          <span class="ap-lbl">🎙 Audio:</span>
+          <div id="audioStatusRow"></div>
+        </div>
+        <div class="abtns">
+          <button class="abtn play" onclick="playAyat(${state.surah.id}, state.cur, SURAH_DATA[${state.surah.id}].ayat)">
+            ▶ Putar Ayat Ini
+          </button>
+          <button class="abtn stp" id="audioStopBtn" onclick="stopAudio()" style="display:none">
+            ⏹ Stop
+          </button>
+          <button class="abtn auto${state.autoPly?" on":""}" id="autoBtn" onclick="toggleAutoPly()">
+            ${state.autoPly?"✓ Auto-Lanjut ON":"Auto-Lanjut"}
+          </button>
+        </div>
+      </div>
+
+      <!-- Nav controls -->
+      <div class="nav">
+        <button class="nbtn" onclick="navigate(-1)">← Mundur</button>
+        <button class="nbtn pri" onclick="navigate(1)">Berikutnya →</button>
+        <button class="nbtn dng" onclick="resetSurah()">↺ Ulang</button>
+        <button class="nbtn${state.trans?" on":""}" id="transBtn" onclick="toggleTrans()">
+          ${state.trans?"✓ Transliterasi":"Transliterasi"}
+        </button>
+        <div class="szc">
+          <label>UKURAN</label>
+          <input type="range" min="1.8" max="5" step="0.1" value="${state.ars}"
+            oninput="setArs(this.value)"/>
+        </div>
+      </div>
+
+      <!-- Ayat list -->
+      <div class="al${state.trans?" show-tr":""}" id="ayatContainer"></div>
+
+      <div class="kh">
+        Ketuk ayat untuk pilih · <span class="kbd">←</span> <span class="kbd">→</span> navigasi
+      </div>
+    </div>`;
+
+  renderAyatList();
+  renderAudioStatus();
+  setTimeout(scrollToCurrent, 100);
+}
+
+// ── ACTIONS ───────────────────────────────────────────────────────────────────
+function navigate(dir) {
+  stopAudio();
+  if (!state.surah) return;
+  const len = SURAH_DATA[state.surah.id]?.ayat?.length || 0;
+  state.cur = Math.max(0, Math.min(state.cur + dir, len - 1));
+  renderSurahHeader(); renderAyatList(); scrollToCurrent();
+}
+
+function resetSurah() {
+  stopAudio(); state.cur = 0;
+  renderSurahHeader(); renderAyatList(); scrollToCurrent();
+}
+
+function toggleTrans() {
+  state.trans = !state.trans;
+  const btn = document.getElementById("transBtn");
+  const al  = document.getElementById("ayatContainer");
+  if (btn) btn.className = "nbtn" + (state.trans?" on":"");
+  if (btn) btn.textContent = state.trans ? "✓ Transliterasi" : "Transliterasi";
+  if (al)  al.className = "al" + (state.trans?" show-tr":"");
+}
+
+function toggleAutoPly() {
+  state.autoPly = !state.autoPly;
+  const btn = document.getElementById("autoBtn");
+  if (btn) {
+    btn.className = "abtn auto" + (state.autoPly?" on":"");
+    btn.textContent = state.autoPly ? "✓ Auto-Lanjut ON" : "Auto-Lanjut";
+  }
+}
+
+function setArs(val) {
+  state.ars = parseFloat(val);
+  document.documentElement.style.setProperty("--ars", state.ars + "rem");
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+// Build sidebar
+const sbList = document.getElementById("surahList");
+SURAH_LIST.forEach(s => {
+  const row = document.createElement("div");
+  row.className = "sb-row";
+  row.dataset.id = s.id;
+  row.innerHTML = `<div><div class="sb-name">${s.name}</div><div class="sb-meta">${s.ayat} ayat · Q.S. ${s.id}</div></div>
+    <div class="sb-ar">${s.arabic}</div>`;
+  row.addEventListener("click", () => selectSurah(s.id));
+  sbList.appendChild(row);
+});
+
+// Theme toggle
+document.getElementById("themeBtn").addEventListener("click", () => {
+  state.night = !state.night;
+  document.querySelector(".app").classList.toggle("light", !state.night);
+  document.getElementById("themeBtn").textContent = state.night ? "☀️" : "🌙";
+});
+
+// Imam mode button
+document.getElementById("imamBtn").addEventListener("click", () => {
+  if (state.imamActive) deactivateImamMode();
+  else activateImamMode();
+});
+
+// Jeda slider
+const jedaSlider = document.getElementById("jedaSlider");
+const jedaVal    = document.getElementById("jedaVal");
+jedaSlider.addEventListener("input", () => {
+  state.jedaSec = parseFloat(jedaSlider.value);
+  jedaVal.textContent = state.jedaSec + "d";
+  if (state.imamActive) {
+    document.getElementById("imamStatusDesc").textContent =
+      `Ayat akan maju otomatis setelah ${state.jedaSec}d diam terdeteksi.`;
+  }
+});
+
+// Qari select
+document.getElementById("qariSelect").addEventListener("change", e => {
+  stopAudio(); state.qari = e.target.value;
+});
+
+// Keyboard
+document.addEventListener("keydown", e => {
+  if (!state.surah) return;
+  if (e.key === "ArrowRight" || e.key === " ") { e.preventDefault(); navigate(1); }
+  if (e.key === "ArrowLeft")  { e.preventDefault(); navigate(-1); }
+});
+
+renderImamBanner();
+renderAll();
+</script>
+</body>
+</html>
