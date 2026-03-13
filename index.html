@@ -75,6 +75,8 @@ body {
   color: var(--dim); margin-bottom: 2px;
 }
 .imam-status-title.active { color: var(--grn); }
+.imam-status-title.calibrating { color: var(--gold); animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
 .imam-status-desc { font-size: .65rem; color: var(--dim); font-family: sans-serif; line-height: 1.4; }
 .imam-jeda { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
 .imam-jeda label { font-size: .62rem; color: var(--dim); font-family: sans-serif; white-space: nowrap; }
@@ -303,6 +305,13 @@ body {
       <div class="imam-vol-bar" id="imamVolBar" style="display:none">
         <div class="imam-vol-fill" id="imamVolFill" style="width:0%"></div>
       </div>
+      <!-- Countdown bar saat diam terdeteksi -->
+      <div id="imamCountdown" style="display:none; align-items:center; gap:8px; margin-top:4px;">
+        <span class="cd-label" style="font-size:.65rem;color:var(--goldl);font-family:sans-serif;white-space:nowrap;"></span>
+        <div style="flex:1;height:4px;background:var(--sur2);border-radius:2px;overflow:hidden;">
+          <div class="cd-bar-fill" style="height:100%;width:0%;background:var(--goldl);border-radius:2px;transition:width .08s linear;"></div>
+        </div>
+      </div>
     </div>
     <button class="imam-btn off" id="imamBtn">🎙 Aktifkan</button>
   </div>
@@ -528,43 +537,228 @@ function playAyat(surahId, idx, ayatList) {
   audio.play().catch(() => { state.audioStatus = "error"; renderAudioStatus(); });
 }
 
-// ── IMAM MODE (MIKROFON + SILENCE DETECTION) ──────────────────────────────────
+// ── IMAM MODE — ADAPTIVE NOISE GATE ──────────────────────────────────────────
+//
+// Algoritma berlapis:
+//  1. KALIBRASI (3 detik pertama): rekam distribusi noise baseline lingkungan
+//  2. ADAPTIVE THRESHOLD: ambang = baseline_mean + 1.8×baseline_std
+//     → threshold naik-turun mengikuti kebisingan ruangan
+//  3. SMOOTHING (ring buffer 5 frame): hindari false trigger dari spike sesaat
+//  4. SPEECH GATE: cek energi di band frekuensi vokal (300–3400 Hz)
+//     → noise statis (AC, kipas) punya spektrum berbeda dari suara manusia
+//  5. HOLD TIME: setelah suara hilang, tunggu minimal 0.3d sebelum mulai
+//     menghitung jeda — cegah trigger di jeda napas antar kata
+//  6. DECAY: threshold perlahan turun saat lama sepi (adaptasi noise floor baru)
+
+const NG = {
+  CALIBRATION_MS:    3000,   // durasi kalibrasi awal
+  POLL_MS:           80,     // polling interval (ms) — lebih cepat = lebih responsif
+  SMOOTH_FRAMES:     5,      // ring buffer size untuk smoothing
+  SPEECH_LOW_BIN:    null,   // diisi saat init (bin index ~300Hz)
+  SPEECH_HIGH_BIN:   null,   // diisi saat init (bin index ~3400Hz)
+  SPEECH_WEIGHT:     0.65,   // bobot energi vokal vs broadband (0-1)
+  THRESHOLD_SIGMA:   2.0,    // threshold = mean + N×std (makin besar = makin toleran noise)
+  HOLD_MS:           300,    // hold time setelah suara hilang sebelum mulai hitung jeda
+  DECAY_RATE:        0.998,  // per-poll decay pada threshold adaptif
+  MIN_THRESHOLD:     4,      // floor minimum threshold
+};
+
+// Runtime state noise gate
+let ng = {
+  calibrating: false,
+  calibSamples: [],
+  baselineMean: 12,
+  baselineStd:  5,
+  threshold:    20,
+  smoothBuf:    [],
+  lastAbove:    0,       // timestamp terakhir di atas threshold
+  holdActive:   false,
+  silenceStart: 0,       // timestamp mulai hitung jeda
+  counting:     false,
+  pollTimer:    null,
+};
+
 async function activateImamMode() {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    const ctx     = new (window.AudioContext || window.webkitAudioContext)();
-    const source  = ctx.createMediaStreamSource(stream);
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      video: false
+    });
+    const ctx      = new (window.AudioContext || window.webkitAudioContext)();
+    const source   = ctx.createMediaStreamSource(stream);
     const analyser = ctx.createAnalyser();
-    analyser.fftSize = 512;
+    analyser.fftSize = 1024;
+    analyser.smoothingTimeConstant = 0.5;
     source.connect(analyser);
 
-    state.audioCtx  = ctx;
-    state.analyser  = analyser;
-    state.micStream = stream;
-    state.imamActive = true;
-    state.lastSoundTime = Date.now();
+    // Hitung bin index untuk speech band 300–3400 Hz
+    const binHz = ctx.sampleRate / analyser.fftSize;
+    NG.SPEECH_LOW_BIN  = Math.floor(300  / binHz);
+    NG.SPEECH_HIGH_BIN = Math.floor(3400 / binHz);
 
-    renderImamBanner();
+    state.audioCtx   = ctx;
+    state.analyser   = analyser;
+    state.micStream  = stream;
+    state.imamActive = true;
+
+    // Reset noise gate state
+    ng.calibrating  = true;
+    ng.calibSamples = [];
+    ng.smoothBuf    = [];
+    ng.lastAbove    = Date.now();
+    ng.counting     = false;
+    ng.holdActive   = false;
+
+    renderImamBanner("calibrating");
     startVolumeMeter();
-    startSilenceDetector();
+    startAdaptiveDetector();
+
+    // Selesai kalibrasi setelah CALIBRATION_MS
+    setTimeout(finishCalibration, NG.CALIBRATION_MS);
+
   } catch (err) {
     alert("Izin mikrofon ditolak atau tidak tersedia.\n\nPastikan:\n1. Buka file ini di Chrome/Safari\n2. Izinkan akses mikrofon saat diminta\n3. Koneksi bukan via iframe");
   }
 }
 
+function finishCalibration() {
+  if (!ng.calibrating || !state.imamActive) return;
+  ng.calibrating = false;
+
+  if (ng.calibSamples.length > 0) {
+    const n    = ng.calibSamples.length;
+    const mean = ng.calibSamples.reduce((a,b) => a+b, 0) / n;
+    const std  = Math.sqrt(ng.calibSamples.reduce((s,v) => s+(v-mean)**2, 0) / n);
+    ng.baselineMean = mean;
+    ng.baselineStd  = std;
+    ng.threshold    = Math.max(NG.MIN_THRESHOLD, mean + NG.THRESHOLD_SIGMA * std);
+  }
+
+  ng.lastAbove  = Date.now();
+  ng.counting   = false;
+  renderImamBanner("active");
+}
+
 function deactivateImamMode() {
+  if (ng.pollTimer) { clearTimeout(ng.pollTimer); ng.pollTimer = null; }
   if (state.micStream) { state.micStream.getTracks().forEach(t => t.stop()); state.micStream = null; }
   if (state.audioCtx)  { state.audioCtx.close(); state.audioCtx = null; }
-  if (state.silenceTimer) { clearTimeout(state.silenceTimer); state.silenceTimer = null; }
   if (state.volRafId)  { cancelAnimationFrame(state.volRafId); state.volRafId = null; }
   state.imamActive = false; state.analyser = null;
-  renderImamBanner();
+  ng.calibrating = false;
+  renderImamBanner("off");
   document.getElementById("imamVolBar").style.display = "none";
+  document.getElementById("imamCountdown").style.display = "none";
+}
+
+function getEnergy(buf) {
+  // Gabungkan energi broadband + energi vokal band (weighted)
+  const n = buf.length;
+  const broadband = Math.sqrt(buf.reduce((s,v) => s+v*v, 0) / n);
+
+  const lo = NG.SPEECH_LOW_BIN  || 0;
+  const hi = Math.min(NG.SPEECH_HIGH_BIN || n, n);
+  const speechSlice = buf.slice(lo, hi);
+  const speech = speechSlice.length > 0
+    ? Math.sqrt(speechSlice.reduce((s,v) => s+v*v, 0) / speechSlice.length)
+    : 0;
+
+  return broadband * (1 - NG.SPEECH_WEIGHT) + speech * NG.SPEECH_WEIGHT;
+}
+
+function startAdaptiveDetector() {
+  const buf = new Uint8Array(state.analyser.frequencyBinCount);
+
+  function poll() {
+    if (!state.imamActive || !state.analyser) return;
+    state.analyser.getByteFrequencyData(buf);
+    const energy = getEnergy(buf);
+
+    // ── Kalibrasi: kumpulkan sampel baseline
+    if (ng.calibrating) {
+      ng.calibSamples.push(energy);
+      ng.pollTimer = setTimeout(poll, NG.POLL_MS);
+      return;
+    }
+
+    // ── Smoothing via ring buffer
+    ng.smoothBuf.push(energy);
+    if (ng.smoothBuf.length > NG.SMOOTH_FRAMES) ng.smoothBuf.shift();
+    const smoothed = ng.smoothBuf.reduce((a,b) => a+b, 0) / ng.smoothBuf.length;
+
+    // ── Adaptive threshold decay (turun perlahan saat sepi lama)
+    ng.threshold = Math.max(
+      NG.MIN_THRESHOLD,
+      Math.max(ng.baselineMean + NG.THRESHOLD_SIGMA * ng.baselineStd, ng.threshold * NG.DECAY_RATE)
+    );
+
+    const isAbove = smoothed > ng.threshold;
+    const now = Date.now();
+
+    if (isAbove) {
+      // Suara terdeteksi — reset semua counter
+      ng.lastAbove  = now;
+      ng.counting   = false;
+      ng.holdActive = false;
+      updateCountdownUI(0, false);
+
+      // Update threshold adaptif ke atas bila suara jauh di atas baseline
+      if (smoothed > ng.threshold * 1.5) {
+        ng.threshold = Math.min(smoothed * 0.85, ng.threshold * 1.3);
+      }
+    } else {
+      const silentMs = now - ng.lastAbove;
+
+      // Hold time: jangan mulai hitung sebelum HOLD_MS berlalu
+      if (silentMs < NG.HOLD_MS) {
+        ng.counting = false;
+        updateCountdownUI(0, false);
+      } else {
+        // Mulai countdown
+        if (!ng.counting) {
+          ng.counting    = true;
+          ng.silenceStart = now - NG.HOLD_MS;
+        }
+        const elapsed = (now - ng.silenceStart) / 1000;
+        const remaining = Math.max(0, state.jedaSec - elapsed);
+        updateCountdownUI(remaining, true);
+
+        if (elapsed >= state.jedaSec && state.surah) {
+          const ayatList = SURAH_DATA[state.surah.id]?.ayat || [];
+          if (state.cur < ayatList.length - 1) {
+            state.cur++;
+            ng.lastAbove  = now;
+            ng.counting   = false;
+            updateCountdownUI(0, false);
+            renderSurahHeader();
+            renderAyatList();
+            scrollToCurrent();
+          }
+        }
+      }
+    }
+
+    ng.pollTimer = setTimeout(poll, NG.POLL_MS);
+  }
+  poll();
+}
+
+function updateCountdownUI(remaining, active) {
+  const el = document.getElementById("imamCountdown");
+  if (!el) return;
+  if (!active || remaining <= 0) {
+    el.style.display = "none";
+  } else {
+    el.style.display = "flex";
+    el.querySelector(".cd-bar-fill").style.width =
+      (100 - (remaining / state.jedaSec) * 100) + "%";
+    el.querySelector(".cd-label").textContent =
+      `⏱ Maju dalam ${remaining.toFixed(1)}d…`;
+  }
 }
 
 function startVolumeMeter() {
-  // Live volume bar so imam can see mic is working
-  const buf = new Uint8Array(state.analyser.frequencyBinCount);
+  const buf  = new Uint8Array(state.analyser.frequencyBinCount);
   const fill = document.getElementById("imamVolFill");
   const bar  = document.getElementById("imamVolBar");
   bar.style.display = "block";
@@ -572,44 +766,16 @@ function startVolumeMeter() {
   function tick() {
     if (!state.analyser) return;
     state.analyser.getByteFrequencyData(buf);
-    const avg = buf.reduce((a,b) => a+b, 0) / buf.length;
-    const pct = Math.min(100, avg * 2.5);
+    const energy = getEnergy(buf);
+    // Normalise against threshold so bar shows relative level
+    const ref = ng.calibrating ? 60 : (ng.threshold * 2.5);
+    const pct = Math.min(100, (energy / ref) * 100);
     fill.style.width = pct + "%";
+    // Colour: merah jika di atas threshold (suara aktif), hijau jika diam
+    fill.style.background = pct > 40 ? "var(--gold)" : "var(--grn)";
     state.volRafId = requestAnimationFrame(tick);
   }
   tick();
-}
-
-function startSilenceDetector() {
-  // Poll RMS every 200ms; if silent > jedaSec → advance to next ayat
-  const buf = new Uint8Array(state.analyser.frequencyBinCount);
-  const THRESHOLD = 8; // RMS value below this = silence
-
-  function poll() {
-    if (!state.imamActive || !state.analyser) return;
-    state.analyser.getByteFrequencyData(buf);
-    const rms = Math.sqrt(buf.reduce((s,v) => s + v*v, 0) / buf.length);
-
-    if (rms > THRESHOLD) {
-      // Sound detected — reset silence timer
-      state.lastSoundTime = Date.now();
-    } else {
-      // Silence — check if exceeded jeda
-      const silentFor = (Date.now() - state.lastSoundTime) / 1000;
-      if (silentFor >= state.jedaSec && state.surah) {
-        const ayatList = SURAH_DATA[state.surah.id]?.ayat || [];
-        if (state.cur < ayatList.length - 1) {
-          state.cur++;
-          state.lastSoundTime = Date.now(); // reset so it doesn't keep firing
-          renderSurahHeader();
-          renderAyatList();
-          scrollToCurrent();
-        }
-      }
-    }
-    setTimeout(poll, 200);
-  }
-  poll();
 }
 
 // ── RENDER HELPERS ────────────────────────────────────────────────────────────
@@ -618,15 +784,22 @@ function scrollToCurrent() {
   if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
-function renderImamBanner() {
+function renderImamBanner(phase) {
+  // phase: "off" | "calibrating" | "active"
   const title = document.getElementById("imamStatusTitle");
   const desc  = document.getElementById("imamStatusDesc");
   const btn   = document.getElementById("imamBtn");
 
-  if (state.imamActive) {
+  if (phase === "calibrating") {
+    title.textContent = "🔄 Kalibrasi noise lingkungan…";
+    title.className = "imam-status-title calibrating";
+    desc.textContent = "Harap tenang sejenak (3 detik). App sedang merekam baseline kebisingan ruangan.";
+    btn.textContent = "⏹ Batalkan";
+    btn.className = "imam-btn on";
+  } else if (phase === "active") {
     title.textContent = "🎙 Imam Mode AKTIF — Mendengarkan…";
     title.className = "imam-status-title active";
-    desc.textContent = `Ayat akan maju otomatis setelah ${state.jedaSec}d diam terdeteksi.`;
+    desc.textContent = `Threshold adaptif aktif. Ayat maju setelah ${state.jedaSec}d diam relatif terhadap noise ruangan.`;
     btn.textContent = "⏹ Nonaktifkan";
     btn.className = "imam-btn on";
   } else {
@@ -869,7 +1042,7 @@ document.addEventListener("keydown", e => {
   if (e.key === "ArrowLeft")  { e.preventDefault(); navigate(-1); }
 });
 
-renderImamBanner();
+renderImamBanner("off");
 renderAll();
 </script>
 </body>
